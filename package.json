@@ -8,6 +8,7 @@
     "start": "node src/server.js",
     "seed": "node src/seed.js"
   },
+  "engines": { "node": ">=18" },
   "keywords": [],
   "author": "",
   "license": "ISC",
