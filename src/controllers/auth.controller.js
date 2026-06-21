@@ -40,5 +40,9 @@ export async function login(req, res) {
 }
 
 export async function getMe(req, res) {
-  res.json(req.user)
+  try {
+    res.json(req.user)
+  } catch (err) {
+    res.status(500).json({ message: err.message })
+  }
 }

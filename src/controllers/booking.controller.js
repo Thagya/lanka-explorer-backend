@@ -1,7 +1,9 @@
 import Booking from '../models/Booking.js'
 import Listing from '../models/Listing.js'
+import mongoose from 'mongoose'
 
-// actor: who is allowed to perform this action
+const isBadId = (id) => !mongoose.Types.ObjectId.isValid(id)
+
 const TRANSITIONS = {
   submit_payment:     { from: ['pending_payment'],                              to: 'under_review',         actor: 'user' },
   resubmit_payment:   { from: ['payment_rejected'],                             to: 'under_review',         actor: 'user' },
@@ -19,8 +21,11 @@ function applyTransition(booking, action, payload, actor) {
   const t = TRANSITIONS[action]
   if (!t || !t.from.includes(booking.status))
     throw new Error(`Cannot perform '${action}' on status '${booking.status}'`)
-  if (t.actor !== actor)
-    throw new Error(`Action '${action}' can only be performed by ${t.actor}`)
+  if (t.actor !== actor) {
+    const err = new Error(`Action '${action}' can only be performed by ${t.actor}`)
+    err.status = 403
+    throw err
+  }
 
   booking.history.push({ actor, action, note: payload?.note, at: new Date() })
   booking.status = t.to
@@ -54,7 +59,7 @@ export async function getAllBookings(req, res) {
   try {
     const filter = {}
     if (req.query.status) filter.status = req.query.status
-    if (req.query.type) filter.type = req.query.type
+    if (req.query.type)   filter.type   = req.query.type
     const bookings = await Booking.find(filter)
       .populate('userId', 'name email')
       .sort({ createdAt: -1 })
@@ -66,10 +71,12 @@ export async function getAllBookings(req, res) {
 
 export async function getBooking(req, res) {
   try {
+    if (isBadId(req.params.id)) return res.status(400).json({ message: 'Invalid booking ID' })
     const booking = await Booking.findById(req.params.id).populate('userId', 'name email')
     if (!booking) return res.status(404).json({ message: 'Booking not found' })
-    // Non-admin users can only see their own
-    if (req.user.role !== 'admin' && String(booking.userId._id) !== String(req.user._id))
+    // Guard against deleted user reference
+    const ownerId = booking.userId?._id ?? booking.userId
+    if (req.user.role !== 'admin' && String(ownerId) !== String(req.user._id))
       return res.status(403).json({ message: 'Forbidden' })
     res.json(booking)
   } catch (err) {
@@ -79,11 +86,18 @@ export async function getBooking(req, res) {
 
 export async function createBooking(req, res) {
   try {
-    const listing = await Listing.findById(req.body.listingId)
+    const { listingId, customer, details, pricing } = req.body
+    if (!listingId) return res.status(400).json({ message: 'listingId is required' })
+    if (isBadId(listingId)) return res.status(400).json({ message: 'Invalid listing ID' })
+
+    const listing = await Listing.findById(listingId)
     if (!listing) return res.status(404).json({ message: 'Listing not found' })
 
     const booking = await Booking.create({
-      ...req.body,
+      listingId,
+      customer,
+      details,
+      pricing,
       listingName: listing.name,
       type: listing.listingType,
       userId: req.user._id,
@@ -97,25 +111,28 @@ export async function createBooking(req, res) {
 
 export async function transitionBooking(req, res) {
   try {
+    if (isBadId(req.params.id)) return res.status(400).json({ message: 'Invalid booking ID' })
     const booking = await Booking.findById(req.params.id)
     if (!booking) return res.status(404).json({ message: 'Booking not found' })
 
+    const { action, ...payload } = req.body
+    if (!action) return res.status(400).json({ message: 'action is required' })
+
     const actor = req.user.role === 'admin' ? 'admin' : 'user'
-    // Only user's own bookings for non-admins
     if (actor === 'user' && String(booking.userId) !== String(req.user._id))
       return res.status(403).json({ message: 'Forbidden' })
 
-    const { action, ...payload } = req.body
     applyTransition(booking, action, payload, actor)
     await booking.save()
     res.json(booking)
   } catch (err) {
-    res.status(400).json({ message: err.message })
+    res.status(err.status || 400).json({ message: err.message })
   }
 }
 
 export async function deleteBooking(req, res) {
   try {
+    if (isBadId(req.params.id)) return res.status(400).json({ message: 'Invalid booking ID' })
     const booking = await Booking.findByIdAndDelete(req.params.id)
     if (!booking) return res.status(404).json({ message: 'Booking not found' })
     res.json({ message: 'Booking deleted' })

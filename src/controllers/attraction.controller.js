@@ -1,12 +1,16 @@
 import Attraction from '../models/Attraction.js'
+import mongoose from 'mongoose'
+
+const isBadId = (id) => !mongoose.Types.ObjectId.isValid(id)
+const escapeRegex = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 
 export async function getAttractions(req, res) {
   try {
     const filter = {}
     if (req.query.category) filter.category = req.query.category
-    if (req.query.region) filter.region = new RegExp(req.query.region, 'i')
+    if (req.query.region)   filter.region   = new RegExp(escapeRegex(req.query.region), 'i')
     if (req.query.search) {
-      const re = new RegExp(req.query.search, 'i')
+      const re = new RegExp(escapeRegex(req.query.search), 'i')
       filter.$or = [{ name: re }, { shortDescription: re }, { tags: re }]
     }
     const attractions = await Attraction.find(filter).sort({ rating: -1 })
@@ -18,6 +22,7 @@ export async function getAttractions(req, res) {
 
 export async function getAttraction(req, res) {
   try {
+    if (isBadId(req.params.id)) return res.status(400).json({ message: 'Invalid attraction ID' })
     const attraction = await Attraction.findById(req.params.id)
     if (!attraction) return res.status(404).json({ message: 'Attraction not found' })
     res.json(attraction)
@@ -37,6 +42,7 @@ export async function createAttraction(req, res) {
 
 export async function updateAttraction(req, res) {
   try {
+    if (isBadId(req.params.id)) return res.status(400).json({ message: 'Invalid attraction ID' })
     const attraction = await Attraction.findByIdAndUpdate(req.params.id, req.body, {
       new: true, runValidators: true,
     })
@@ -49,6 +55,7 @@ export async function updateAttraction(req, res) {
 
 export async function deleteAttraction(req, res) {
   try {
+    if (isBadId(req.params.id)) return res.status(400).json({ message: 'Invalid attraction ID' })
     const attraction = await Attraction.findByIdAndDelete(req.params.id)
     if (!attraction) return res.status(404).json({ message: 'Attraction not found' })
     res.json({ message: 'Attraction deleted' })

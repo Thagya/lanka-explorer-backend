@@ -2,13 +2,17 @@ import Review from '../models/Review.js'
 import Listing from '../models/Listing.js'
 
 async function updateListingRating(listingId) {
-  const reviews = await Review.find({ listingId })
-  const count = reviews.length
-  const avg = count ? reviews.reduce((s, r) => s + r.rating, 0) / count : 0
-  await Listing.findByIdAndUpdate(listingId, {
-    rating: Math.round(avg * 10) / 10,
-    reviewCount: count,
-  })
+  try {
+    const reviews = await Review.find({ listingId })
+    const count = reviews.length
+    const avg = count ? reviews.reduce((s, r) => s + r.rating, 0) / count : 0
+    await Listing.findByIdAndUpdate(listingId, {
+      rating: Math.round(avg * 10) / 10,
+      reviewCount: count,
+    })
+  } catch (err) {
+    console.error('Failed to update listing rating:', err.message)
+  }
 }
 
 export async function getReviews(req, res) {

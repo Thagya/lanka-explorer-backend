@@ -1,5 +1,6 @@
 import User from '../models/User.js'
 import Booking from '../models/Booking.js'
+import Review from '../models/Review.js'
 
 export async function getUsers(req, res) {
   try {
@@ -50,6 +51,11 @@ export async function deleteUser(req, res) {
   try {
     const user = await User.findByIdAndDelete(req.params.id)
     if (!user) return res.status(404).json({ message: 'User not found' })
+    // Cascade: remove user's bookings and reviews
+    await Promise.all([
+      Booking.deleteMany({ userId: req.params.id }),
+      Review.deleteMany({ userId: req.params.id }),
+    ])
     res.json({ message: 'User deleted' })
   } catch (err) {
     res.status(500).json({ message: err.message })

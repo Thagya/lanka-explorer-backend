@@ -1,10 +1,14 @@
 import Listing from '../models/Listing.js'
+import mongoose from 'mongoose'
+
+const isBadId = (id) => !mongoose.Types.ObjectId.isValid(id)
+const escapeRegex = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 
 export async function getListings(req, res) {
   try {
     const filter = { active: true }
-    if (req.query.type) filter.listingType = req.query.type
-    if (req.query.region) filter.region = new RegExp(req.query.region, 'i')
+    if (req.query.type)   filter.listingType = req.query.type
+    if (req.query.region) filter.region      = new RegExp(escapeRegex(req.query.region), 'i')
     const listings = await Listing.find(filter).sort({ createdAt: -1 })
     res.json(listings)
   } catch (err) {
@@ -23,6 +27,7 @@ export async function getAllListings(req, res) {
 
 export async function getListing(req, res) {
   try {
+    if (isBadId(req.params.id)) return res.status(400).json({ message: 'Invalid listing ID' })
     const listing = await Listing.findById(req.params.id)
     if (!listing) return res.status(404).json({ message: 'Listing not found' })
     res.json(listing)
@@ -42,6 +47,7 @@ export async function createListing(req, res) {
 
 export async function updateListing(req, res) {
   try {
+    if (isBadId(req.params.id)) return res.status(400).json({ message: 'Invalid listing ID' })
     const listing = await Listing.findByIdAndUpdate(req.params.id, req.body, {
       new: true, runValidators: true,
     })
@@ -54,6 +60,7 @@ export async function updateListing(req, res) {
 
 export async function deleteListing(req, res) {
   try {
+    if (isBadId(req.params.id)) return res.status(400).json({ message: 'Invalid listing ID' })
     const listing = await Listing.findByIdAndDelete(req.params.id)
     if (!listing) return res.status(404).json({ message: 'Listing not found' })
     res.json({ message: 'Listing deleted' })

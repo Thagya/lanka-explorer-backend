@@ -54,8 +54,10 @@ app.get('/api/health', (_req, res) => res.json({ status: 'ok', time: new Date().
 // 404
 app.use((_req, res) => res.status(404).json({ message: 'Route not found' }))
 
-// Global error handler
+// Global error handler — catches malformed JSON and any other unhandled errors
 app.use((err, _req, res, _next) => {
+  if (err.type === 'entity.parse.failed')
+    return res.status(400).json({ message: 'Invalid JSON in request body' })
   console.error(err.stack)
   res.status(err.status || 500).json({ message: err.message || 'Internal server error' })
 })

@@ -33,4 +33,13 @@ router.post('/', protect, adminOnly, upload.single('image'), (req, res) => {
   res.json({ url })
 })
 
+// Handle multer errors (file type rejection, size limit exceeded)
+router.use((err, _req, res, _next) => {
+  if (err && err.code === 'LIMIT_FILE_SIZE')
+    return res.status(400).json({ message: 'File too large. Maximum size is 5 MB.' })
+  if (err && err.message === 'Only image files are allowed')
+    return res.status(400).json({ message: err.message })
+  res.status(500).json({ message: err?.message || 'Upload failed' })
+})
+
 export default router
